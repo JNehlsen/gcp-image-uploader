@@ -1,0 +1,294 @@
+<!doctype html>
+<html class="no-js" lang="">
+
+<head>
+  <meta charset="utf-8">
+  <title></title>
+  <meta name="description" content="">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <link rel="manifest" href="site.webmanifest">
+  <link rel="apple-touch-icon" href="icon.png">
+  <!-- Place favicon.ico in the root directory -->
+
+  <link rel="stylesheet" href="css/normalize.css">
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/bootstrap.css">
+  <link rel="stylesheet" href="css/bootstrap-reboot.css">
+  <link rel="stylesheet" href="css/bootstrap-grid.css">
+  <link rel="stylesheet" href="css/album.css">
+
+  <style>
+    .bd-placeholder-img {
+      font-size: 1.125rem;
+      text-anchor: middle;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+    }
+
+    @media (min-width: 768px) {
+      .bd-placeholder-img-lg {
+        font-size: 3.5rem;
+      }
+    }
+  </style>
+
+  <meta name="theme-color" content="#fafafa">
+</head>
+
+  <body>
+    <header>
+    <div class="navbar navbar-dark bg-dark shadow-sm">
+      <div class="container d-flex justify-content-between">
+        <a href="#" class="navbar-brand d-flex align-items-center">
+          <strong>G-Cloud Sample Web Deploy</strong>
+        </a>
+      </div>
+    </div>
+  </header>
+
+<main role="main">
+
+  <section class="jumbotron text-center">
+    <div class="container">
+      <h1 class="jumbotron-heading">Rockin' PHP Image Uploader!</h1>
+      <p class="lead text-muted">This page is to prove to the jerks at my table that PHP is a legitimate web language.</p>
+      <p><small>(Site contains no PHP)</small></p>
+      <p>
+        <button type="button" class="btn btn-info" data-toggle="modal" data-target="#uploadModal">Upload file</button>
+      </p>
+    </div>
+  </section>
+
+  <div class="album py-5 bg-light">
+    <div class="mainDisplay">
+
+    </div>
+  </div>
+
+    <!-- Modal -->
+  <div id="uploadModal" class="modal fade" role="dialog">
+    <div class="modal-dialog">
+
+      <!-- Modal content-->
+      <div class="modal-content">
+        <div class="modal-header">
+          <button type="button" class="close" data-dismiss="modal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <h4 class="modal-title">File upload form</h4>
+          <!-- Form -->
+          <form method='post' action='' enctype="multipart/form-data">
+            Select file : <input type='file' name='file' id='file' class='form-control'/><br>
+            Image Comment:<br>
+              <input style="width:100%" type="textarea" name="comment" value="Comment" id="comments"><br>
+              <br>
+              <br>
+            <input type='button' class='btn btn-info' onclick="processFile();" value="Send to Database">
+          </form>
+
+          <!-- Preview-->
+          <div id='preview'></div>
+        </div>
+   
+      </div>
+
+    </div>
+
+</main>
+
+<footer class="text-muted">
+  <div class="container">
+    <p class="float-right">
+      <a href="#">Back to top</a>
+    </p>
+  </div>
+</footer>
+
+<!-- Pull down the jQueries -->
+<script src="https://code.jquery.com/jquery-1.10.2.js"></script>
+
+<script src='js/bootstrap.js' type='text/javascript'></script>
+<script src='js/plugins.js' type='text/javascript'></script>
+
+<script src="https://www.gstatic.com/firebasejs/5.9.3/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/5.9.3/firebase-firestore.js"></script>
+<script src="https://www.gstatic.com/firebasejs/5.9.3/firebase-storage.js"></script>
+
+<script>
+  
+  //Bind an event listener to the file modal.
+  document.getElementById('file').addEventListener('change', readFile, false);
+
+  // Initialize Firebase
+
+  var config = {
+    apiKey: "AIzaSyDdbxdOkmidGdC2IpWdVp54d4LBFFy4A34",
+    authDomain: "gcp-training-demo-fe7be.firebaseapp.com",
+    databaseURL: "https://gcp-training-demo-fe7be.firebaseio.com",
+    projectId: "gcp-training-demo-fe7be",
+    storageBucket: "gcp-training-demo-fe7be.appspot.com",
+    messagingSenderId: "935566690510"
+  };
+  firebase.initializeApp(config);
+
+  var firestore = firebase.firestore();
+  var count = 0;
+  var rowId = 1;
+  var image;
+  var imageLocation;
+
+  var html = "<div class='col-md-4'><div class='card mb-4 shadow-sm'><img style='margin:0 auto;' src='{{URL}}' height='350' xmlns='http://www.w3.org/2000/svg' width:'100%' focusable='false' role='img' /><rect width='100%' height='100%' fill='#55595c'/><text style='text-align:center; font-weight:bold; padding: 30px 0;' x='50%' y='50%' fill='#eceeef' dy='.3em'>{{TITLE}}</text></svg><div class='card-body'><p class='card-text'>{{COMMENT}}</p><div class='d-flex justify-content-between align-items-center'><small class='text-muted'>{{DATE}}</small></div></div></div></div>";
+
+  dataLoad();
+
+  function dataLoad(){
+    $('.mainDisplay').empty()
+    init();
+  }
+
+  function init(){
+    firestore.collection("pictures").get().then((querySnapshot) => {
+      querySnapshot.forEach((doc) => {
+        buildDisplay(doc.data());
+      });
+    });
+  }
+
+function buildDisplay(data) {
+  var template = '';
+  var template = html;
+
+  template = template.replace("{{URL}}", data.URL);
+  template = template.replace("{{TITLE}}", data.Title);
+  template = template.replace("{{COMMENT}}", data.Comment);
+  template = template.replace("{{DATE}}", convertDateToNormal(data.DateAdded)); 
+
+  // after 3 items, move to the next row
+  if (count % 3 === 0) {
+    if(count != 0) {
+      rowId++;
+    }
+
+    $('.mainDisplay').append( "<div class='row row" +rowId+"'>" );
+  }
+
+  addPictureCard(template, rowId);
+
+  count++;
+}
+
+function addPictureCard(htmlTemplate, rowNum){
+  $('.row'+rowNum).append(htmlTemplate);
+}
+
+function clearGrid() {
+    $('.mainDisplay').empty();
+}
+
+function checkLength(timeInt){
+  if (timeInt.toString().length === 1) {
+    return "0" +timeInt.toString();
+  } else {
+    return timeInt;
+  }
+}
+
+function convertDateToNormal(dateStamp){
+  var date = new Date(dateStamp.seconds*1000);
+
+  var day = date.getDate();
+  var month = date.getMonth(); //Be careful! January is 0 not 1
+  var year = date.getFullYear();
+
+  var hour = date.getHours();
+  hour = checkLength(hour);
+  var minuite = date.getMinutes();
+  minuite = checkLength(minuite);
+
+  return day + "-" +(month + 1) + "-" + year + " " + hour + ":" + minuite;
+}
+
+function readFile(e) {
+  if(window.FileReader) {
+    var file  = e.target.files[0];
+    var reader = new FileReader();
+    if (file && file.type.match('image.*')) {
+      reader.readAsDataURL(file);
+    } 
+
+    reader.onloadend = function (e) {
+      image = reader.result;
+    }
+  }
+}
+
+function processFile() {
+  var storageRef = firebase.storage().ref();
+
+  var filename = $('#file').val();
+  // C:\fakepath\imagename.jpg
+  var split = filename.split('\\');
+  var comments = $('#comments').val();
+
+  filename = split[2];
+
+      // 1 Media Data in memory
+  let data = image;
+
+var uploadTask = storageRef.child('images/' + filename).putString(data, 'data_url');
+//var uploadTask = storageRef.putString(data, 'data_url')
+
+uploadTask.on('state_changed', function(snapshot){
+  // Observe state change events such as progress, pause, and resume
+  // Get task progress, including the number of bytes uploaded and the total number of bytes to be uploaded
+  var progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+  console.log('Upload is ' + progress + '% done');
+  switch (snapshot.state) {
+    case firebase.storage.TaskState.PAUSED: // or 'paused'
+      console.log('Upload is paused');
+      break;
+    case firebase.storage.TaskState.RUNNING: // or 'running'
+      console.log('Upload is running');
+      break;
+  }
+}, function(error) {
+  // Handle unsuccessful uploads
+}, function() {
+  // Handle successful uploads on complete
+  // For instance, get the download URL: https://firebasestorage.googleapis.com/...
+  uploadTask.snapshot.ref.getDownloadURL().then(function(downloadURL) {
+    imageLocation = downloadURL;
+
+    firestore.collection("pictures").add({
+      Comment: comments,
+      Title: filename,
+      DateAdded: new Date(),
+      URL: imageLocation
+    })
+    .then(function(docRef) {
+        console.log("Document written with ID: ", docRef.id);
+    })
+    .catch(function(error) {
+        console.error("Error adding document: ", error);
+    });
+
+    $('#uploadModal').modal('hide');
+
+    dataLoad();
+
+  });
+});
+
+
+
+
+}
+
+</script>
+
+
+
+</html>
